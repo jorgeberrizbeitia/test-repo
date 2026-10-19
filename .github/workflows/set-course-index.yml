@@ -2,27 +2,30 @@
 name: Set cohort course index
 
 on:
-  push:
-    branches:
-      - 'cohort-*'
-  workflow_dispatch:
+  create:
 
 permissions:
   contents: write
 
 jobs:
   set-index:
+    if: >-
+      github.event.ref_type == 'branch' &&
+      startsWith(github.event.ref, 'cohort-')
+
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
+      - name: Check out the new cohort branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.ref }}
 
       - name: Select index based on cohort branch
         shell: bash
+        env:
+          BRANCH: ${{ github.event.ref }}
         run: |
-          BRANCH="${GITHUB_REF_NAME}"
-
           echo "Processing branch: $BRANCH"
 
           if [[ "$BRANCH" == *FT* ]]; then
@@ -40,21 +43,23 @@ jobs:
           fi
 
           cp "$SOURCE" index.yaml
-
-          echo "Selected $SOURCE for branch $BRANCH"
+          echo "Created index.yaml from $SOURCE"
 
       - name: Commit generated index.yaml
         shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.event.ref }}
         run: |
-          if git diff --quiet -- index.yaml; then
-            echo "index.yaml is already correct. No commit needed."
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add index.yaml
-          git commit -m "chore: set index.yaml for ${GITHUB_REF_NAME}"
-          git push
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: generate index.yaml for cohort"
+          git push origin "HEAD:$TARGET_BRANCH"
