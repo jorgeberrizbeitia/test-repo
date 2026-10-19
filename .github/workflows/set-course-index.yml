@@ -1,0 +1,60 @@
+
+name: Set cohort course index
+
+on:
+  push:
+    branches:
+      - 'cohort-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  set-index:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select index based on cohort branch
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+
+          echo "Processing branch: $BRANCH"
+
+          if [[ "$BRANCH" == *FT* ]]; then
+            SOURCE="index-ft.yaml"
+          elif [[ "$BRANCH" == *PT* ]]; then
+            SOURCE="index-pt.yaml"
+          else
+            echo "ERROR: Branch name must contain FT or PT."
+            exit 1
+          fi
+
+          if [[ ! -f "$SOURCE" ]]; then
+            echo "ERROR: $SOURCE does not exist."
+            exit 1
+          fi
+
+          cp "$SOURCE" index.yaml
+
+          echo "Selected $SOURCE for branch $BRANCH"
+
+      - name: Commit generated index.yaml
+        shell: bash
+        run: |
+          if git diff --quiet -- index.yaml; then
+            echo "index.yaml is already correct. No commit needed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add index.yaml
+          git commit -m "chore: set index.yaml for ${GITHUB_REF_NAME}"
+          git push
